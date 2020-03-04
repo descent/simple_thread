@@ -1,4 +1,3 @@
-#include "pthread.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -103,64 +102,6 @@ void sigalrm_fn(int sig)
   //alarm(2);
   #endif
   return;
-}
-
-void reschedule() 
-{
-  while(1)
-  {
-    return;
-  }
-}
-
-void context_switch (my_jmp_buf *new_state, my_jmp_buf *old_state)
-{
-    if (my_setjmp(*old_state) == 0)
-        my_longjmp(*new_state, 1);
-}
-
-
-void *scheduler (void *dummy) 
-{
-  if (my_setjmp(scheduler_state) == 0)
-  {
-    printf("first\n");
-    pause();
-  }
-  else
-  {
-    printf("in sch select th1\n");
-    cur_th = &th1;
-    my_longjmp(th1, 1);
-  }
-#if 0
-    //sched_thread->state = thread_sched;
-
-    while (1) 
-    {
-
-        reschedule();
-
-#if 0
-        while (debug_target != NULL) {
-            sched_debug_hook();
-            reschedule();
-        }
-        current = best_thread();
-
-        gettimeofday (&current->last_ran, NULL);
-#endif
-        context_switch (&scheduler_state, &th1);
-#if 0
-        if (*current->beforeguard != 0xdeadbeef
-            || *current->afterguard != 0xdeadbeef)
-        {
-            assert ("Stack overflow" == 0);
-        }
-#endif
-    }
-#endif
-  return 0;
 }
 
 int main(int argc, char *argv[])

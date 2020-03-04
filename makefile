@@ -1,5 +1,8 @@
 CC=gcc
-CFLAGS=-m32 -g
+CFLAGS=-m32 -g -Wall
+test_signal: test_signal.c
+	$(CC) $(CFLAGS) -o $@ $^
+
 simple_thread: simple_thread.o my_setjmp.o
 	$(CC) $(CFLAGS) -o $@ $^
 

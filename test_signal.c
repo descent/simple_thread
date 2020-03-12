@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/time.h>
+
+#define _GNU_SOURCE
 #include <signal.h>
 
 // modify from tlpi-book lib/signal_functions.c
@@ -50,6 +52,7 @@ int main(int argc, char *argv[])
   printf("SIGRTMIN: %d\n", SIGRTMIN);
   printf("SIGRTMAX: %d\n", SIGRTMAX);
 
+#if 0
   struct sigaction s1, old_s1;
   struct sigaction s2, old_s2;
 
@@ -66,9 +69,10 @@ int main(int argc, char *argv[])
   sigaction(SIGUSR1, &s1, &old_s1);
   //sigaction(SIGRTMIN, &s2, &old_s2);
 
-#if 0
-  signal(SIGUSR1, sigalrm_fn);
-  signal(SIGRTMIN, sigalrm_fn);
+#else
+  __sysv_signal(SIGUSR1, sigalrm_fn);
+  //signal(SIGUSR1, sigalrm_fn);
+  //signal(SIGRTMIN, sigalrm_fn);
 #endif
 
   while (1) 

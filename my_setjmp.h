@@ -17,24 +17,51 @@
 #ifndef MY_SETJMP_H
 #define MY_SETJMP_H
 
+//#define X86_32
+//#define X86_64
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-  unsigned long eax;
-  unsigned long ebx;
-  unsigned long ecx;
-  unsigned long edx;
-  unsigned long esi;
-  unsigned long edi;
-  unsigned long ebp;
-  unsigned long esp;
-  unsigned long eip;
-} my_jmp_buf[1];
+#ifdef X86_32
 
-extern int my_setjmp(my_jmp_buf);
-extern void my_longjmp(my_jmp_buf, int);
+typedef struct {
+  unsigned int eax; // 32bit size
+  unsigned int ebx;
+  unsigned int ecx;
+  unsigned int edx;
+  unsigned int esi;
+  unsigned int edi;
+  unsigned int ebp;
+  unsigned int esp;
+  unsigned int eip;
+} my_x32_jmp_buf[1];
+
+int my_x32_setjmp(my_x32_jmp_buf);
+void my_x32_longjmp(my_x32_jmp_buf, int);
+#endif
+
+#ifdef X86_64
+typedef struct {
+  unsigned long long rbx; // 64bit size
+  unsigned long long rbp;
+  unsigned long long r12;
+  unsigned long long r13;
+  unsigned long long r14;
+  unsigned long long r15;
+  unsigned long long rsp;
+  unsigned long long rip;
+  unsigned long long res;
+} my_x64_jmp_buf[1];
+
+int my_x64_setjmp(my_x64_jmp_buf);
+void my_x64_longjmp(my_x64_jmp_buf, int);
+
+#endif
+
+
+
 
 #ifdef __cplusplus
 }

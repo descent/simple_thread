@@ -14,14 +14,27 @@ char func1_stack[BUF_SIZE+64];
 char func2_stack[BUF_SIZE+64];
 char scheduler_stack[BUF_SIZE];
 
-my_jmp_buf th1;
-my_jmp_buf th2;
-my_jmp_buf running_state;
-my_jmp_buf scheduler_state;
+#ifdef X86_32
+my_x32_jmp_buf th1;
+my_x32_jmp_buf th2;
 
-my_jmp_buf *cur_th;
-my_jmp_buf *next_th;
+my_x32_jmp_buf *cur_th;
+my_x32_jmp_buf *next_th;
 
+#define my_setjmp my_x32_setjmp
+#define my_longjmp my_x32_longjmp
+#endif
+
+#ifdef X86_64
+my_x64_jmp_buf th1;
+my_x64_jmp_buf th2;
+
+my_x64_jmp_buf *cur_th;
+my_x64_jmp_buf *next_th;
+
+#define my_setjmp my_x64_setjmp
+#define my_longjmp my_x64_longjmp
+#endif
 
 void func1()
 {
@@ -32,6 +45,12 @@ void func1()
     printf("3");
     printf("4");
     printf("5");
+    #if 0
+  for (int i=0 ; i < 1000 ; ++i)
+    for (int i=0 ; i < 1000 ; ++i)
+      for (int i=0 ; i < 500 ; ++i)
+        ;
+        #endif
     printf("6");
     printf("7");
     printf("8");
@@ -40,6 +59,7 @@ void func1()
     printf("\n");
   }
 }
+
 void func2()
 {
   while(1)
@@ -106,15 +126,28 @@ void sigalrm_fn(int sig)
 
 int main(int argc, char *argv[])
 {
+  setbuf(stdout, 0);
   signal(SIGUSR1, sigalrm_fn);
   my_setjmp(th1);
+#ifdef X86_32
   th1[0].eip = (unsigned long)func1;
   th1[0].esp = (unsigned long)(func1_stack + BUF_SIZE);
+#endif
+#ifdef X86_64
+  th1[0].rip = (unsigned long)func1;
+  th1[0].rsp = (unsigned long)(func1_stack + BUF_SIZE);
+#endif
 
   if (my_setjmp(th2) == 0)
   {
+#ifdef X86_32
     th2[0].eip = (unsigned long)func2;
     th2[0].esp = (unsigned long)(func2_stack + BUF_SIZE);
+#endif
+#ifdef X86_64
+    th2[0].rip = (unsigned long)func2;
+    th2[0].rsp = (unsigned long)(func2_stack + BUF_SIZE);
+#endif
     cur_th = &th2;
     my_longjmp(th2, 1);
   }
@@ -176,7 +209,5 @@ int main(int argc, char *argv[])
 #if 0
   my_longjmp(th1, 1);
 #endif
-  while(1);
-    pause();
   return 0;
 }

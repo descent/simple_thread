@@ -1,5 +1,13 @@
 CC=gcc
-CFLAGS=-g -Wall
+CFLAGS=-g -Wall 
+#-no-pie -fno-pic -fno-stack-protector -static
+
+test_setjmp: test_setjmp.o my_setjmp.o
+	$(CC) -m32 $(CFLAGS) -o $@ $^
+
+test_setjmp.o: test_setjmp.c my_setjmp.h
+	$(CC) -DX86_32 -m32 $(CFLAGS) -c -o $@ $<
+
 test_signal: test_signal.c
 	$(CC) $(CFLAGS) -o $@ $^
 

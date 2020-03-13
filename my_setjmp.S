@@ -5,12 +5,12 @@ my_x32_setjmp:
 	//pushl	%esp
 
 #if 1
-	pushl	%ebx
-	movl	8(%esp), %ebx
+	pushl	%ebx           # 之前有過 ebx 值需要先 push 保存起來的情形, 所以先 push ebx 避免無法還原 ebx 的值
+	movl	8(%esp), %ebx  # jmp_buf 參數的位址
 	movl	%eax, (%ebx)
 	popl	%eax
 
-
+	movl	%esp, 28(%ebx) # 保存 esp
 	pushl	%eax
 
 	movl	%eax, 4(%ebx)
@@ -18,7 +18,8 @@ my_x32_setjmp:
 	movl	%edx, 12(%ebx)
 	movl	%esi, 16(%ebx)
 	movl	%edi, 20(%ebx)
-	movl	%esp, 28(%ebx)
+#        lea     0x4(%esp),%ecx # 
+#	movl	%ecx, 28(%ebx) # 保存 esp
 	movl	%ebp, 24(%ebx)
 
 

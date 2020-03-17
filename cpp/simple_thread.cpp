@@ -147,6 +147,17 @@ void *func2(void *arg)
   }
 }
 
+void *func3(void *arg)
+{
+  {
+    printf("331 ");
+    printf("332 ");
+    printf("333 ");
+    printf("334 ");
+    printf("335 ");
+    printf("\n");
+  }
+}
 
 void sigalrm_fn(int sig)
 {
@@ -193,12 +204,16 @@ DS::pthread_attr_t th_attr1;
 DS::pthread_t t2;
 DS::pthread_attr_t th_attr2;
 
+DS::pthread_t t3;
+DS::pthread_attr_t th_attr3;
+
 int main(int argc, char *argv[])
 {
   setbuf(stdout, 0);
   signal(SIGUSR1, sigalrm_fn);
   int ret = pthread_create(&t1, &th_attr1, func1, 0);
   ret = pthread_create(&t2, &th_attr2, func2, 0);
+  ret = pthread_create(&t3, &th_attr3, func3, 0);
 
 
 #if 0

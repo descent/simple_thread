@@ -150,6 +150,8 @@ void *func2(void *arg)
 
 void sigalrm_fn(int sig)
 {
+  static int once;
+
   sigset_t sigs;
   /* Unblock the SIGUSR1 signal that got us here */
 #if 1
@@ -158,6 +160,11 @@ void sigalrm_fn(int sig)
   sigprocmask (SIG_UNBLOCK, &sigs, NULL);
 #endif
   printf("got USR1!\n");
+  if (once == 0)
+  {
+    once = 1;
+    my_longjmp(DS::thread_vec[DS::current_index]->jmp_buf_, 1);
+  }
 
   int cur = DS::current_index;
   int next = DS::get_next_thread();
@@ -192,7 +199,6 @@ int main(int argc, char *argv[])
   signal(SIGUSR1, sigalrm_fn);
   int ret = pthread_create(&t1, &th_attr1, func1, 0);
   ret = pthread_create(&t2, &th_attr2, func2, 0);
-  my_longjmp(DS::thread_vec[DS::current_index]->jmp_buf_, 1);
 
 
 #if 0

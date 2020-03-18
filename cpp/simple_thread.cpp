@@ -46,6 +46,16 @@ union ABC
   vector<pthread_t*> thread_vec;
   auto cur_thread = thread_vec.begin();
   int current_index = 0;
+  int pthread_exit_ret = 1;
+
+  void pthread_exit(void *retval)
+  {
+    while(1)
+    {
+      //printf("thread exit: retval: %d\n", *((int*)retval));
+      printf("thread exit: %p, retval: %d\n", retval, *((int*)retval));
+    }
+  }
 
   int pthread_attr_setstack(pthread_attr_t *attr, void *stackaddr, size_t stacksize)
   {
@@ -67,9 +77,31 @@ union ABC
     thread->jmp_buf_[0].eip = (intptr_t)start_routine;
     //thread->jmp_buf_[0].esp = (unsigned long)(func1_stack + BUF_SIZE);
 
-    thread->jmp_buf_[0].esp = (intptr_t)thread_malloc_stack(BUF_SIZE) + BUF_SIZE;
-    if (thread->jmp_buf_[0].esp == 0)
+    auto stack_addr = thread_malloc_stack(BUF_SIZE);
+    if (stack_addr == 0)
       return -1;
+
+    printf("xx sizeof(intptr_t): %u\n", sizeof(intptr_t));
+
+    thread->jmp_buf_[0].esp = (intptr_t)(stack_addr + BUF_SIZE - sizeof(intptr_t));
+
+    printf("stack_addr + BUF_SIZE: %p\n", stack_addr+BUF_SIZE);
+    printf("thread->jmp_buf_[0].esp: %#x\n", thread->jmp_buf_[0].esp);
+    printf("&pthread_exit_ret: %p\n", &pthread_exit_ret);
+
+#if 1
+    *(intptr_t*)thread->jmp_buf_[0].esp = (intptr_t)&pthread_exit_ret; // pthread_exit argument
+    thread->jmp_buf_[0].esp -= sizeof(intptr_t);
+#endif
+
+#if 1
+    *(intptr_t*)thread->jmp_buf_[0].esp = 0; // push ebp
+    thread->jmp_buf_[0].esp -= sizeof(intptr_t);
+#endif
+
+    *(intptr_t*)thread->jmp_buf_[0].esp = (intptr_t)pthread_exit;
+    thread->jmp_buf_[0].esp -= sizeof(intptr_t);
+
     thread_vec.push_back(thread);
     cur_thread = thread_vec.end() - 1;
     current_index = thread_vec.size() - 1;

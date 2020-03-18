@@ -1,6 +1,5 @@
 CXX=g++
-CFLAGS=-save-temps -std=c++17 -g -Wall -I..
-#-no-pie -fno-pic -fno-stack-protector -static
+CFLAGS=-save-temps -std=c++17 -g -Wall -I.. -no-pie -fno-pic -fno-stack-protector -static
 simple_thread: simple_thread.o my_setjmp.o
 	$(CXX) -m32 $(CFLAGS) -o $@ $^
 

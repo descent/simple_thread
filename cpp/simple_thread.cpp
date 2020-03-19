@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <stdlib.h>
+#include <cstdlib>
 #include <unistd.h>
 #include <sys/time.h>
 #include <signal.h>
@@ -13,6 +13,27 @@ char func1_stack[BUF_SIZE+64];
 char func2_stack[BUF_SIZE+64];
 char scheduler_stack[BUF_SIZE];
 
+#ifdef X86_32
+my_x32_jmp_buf th1;
+my_x32_jmp_buf th2;
+
+my_x32_jmp_buf *cur_th;
+my_x32_jmp_buf *next_th;
+
+#define my_setjmp my_x32_setjmp
+#define my_longjmp my_x32_longjmp
+#endif
+
+#ifdef X86_64
+my_x64_jmp_buf th1;
+my_x64_jmp_buf th2;
+
+my_x64_jmp_buf *cur_th;
+my_x64_jmp_buf *next_th;
+
+#define my_setjmp my_x64_setjmp
+#define my_longjmp my_x64_longjmp
+#endif
 
 
 
@@ -48,12 +69,34 @@ union ABC
   int current_index = 0;
   int pthread_exit_ret = 1;
 
+  auto get_next_thread()
+  {
+    int cnt=0;
+    while(1)
+    {
+      current_index = (current_index + 1) % thread_vec.size();
+      if (thread_vec[current_index] !=0)
+        break;
+      else
+        ++cnt;
+      if (cnt == thread_vec.size())
+      {
+        printf("all thread end\n");
+        exit(0);
+      }
+    }
+    return current_index;
+  }
+
   void pthread_exit(void *retval)
   {
-    while(1)
+    //while(1)
     {
       //printf("thread exit: retval: %d\n", *((int*)retval));
       printf("thread exit: %p, retval: %d\n", retval, *((int*)retval));
+      thread_vec[current_index] = 0;
+      int next = DS::get_next_thread();
+      my_longjmp(DS::thread_vec[next]->jmp_buf_, 1);
     }
   }
 
@@ -108,38 +151,12 @@ union ABC
     return 0;
   }
 
-  auto get_next_thread()
-  {
-    current_index = (current_index + 1) % thread_vec.size();
-    return current_index;
-  }
 
 }
 
 //Thread th1;
 
 
-#ifdef X86_32
-my_x32_jmp_buf th1;
-my_x32_jmp_buf th2;
-
-my_x32_jmp_buf *cur_th;
-my_x32_jmp_buf *next_th;
-
-#define my_setjmp my_x32_setjmp
-#define my_longjmp my_x32_longjmp
-#endif
-
-#ifdef X86_64
-my_x64_jmp_buf th1;
-my_x64_jmp_buf th2;
-
-my_x64_jmp_buf *cur_th;
-my_x64_jmp_buf *next_th;
-
-#define my_setjmp my_x64_setjmp
-#define my_longjmp my_x64_longjmp
-#endif
 
 void *func1(void *arg)
 {

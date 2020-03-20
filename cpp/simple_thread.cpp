@@ -14,23 +14,12 @@ char func2_stack[BUF_SIZE+64];
 char scheduler_stack[BUF_SIZE];
 
 #ifdef X86_32
-my_x32_jmp_buf th1;
-my_x32_jmp_buf th2;
-
-my_x32_jmp_buf *cur_th;
-my_x32_jmp_buf *next_th;
 
 #define my_setjmp my_x32_setjmp
 #define my_longjmp my_x32_longjmp
 #endif
 
 #ifdef X86_64
-my_x64_jmp_buf th1;
-my_x64_jmp_buf th2;
-
-my_x64_jmp_buf *cur_th;
-my_x64_jmp_buf *next_th;
-
 #define my_setjmp my_x64_setjmp
 #define my_longjmp my_x64_longjmp
 #endif
@@ -64,6 +53,11 @@ union ABC
     #endif
   };
 
+  pthread_t pthread_self(void)
+  {
+    //return (pthread_t)0;
+  }
+
   vector<pthread_t*> thread_vec;
   auto cur_thread = thread_vec.begin();
   int current_index = 0;
@@ -71,7 +65,7 @@ union ABC
 
   auto get_next_thread()
   {
-    int cnt=0;
+    unsigned int cnt=0;
     while(1)
     {
       current_index = (current_index + 1) % thread_vec.size();
@@ -85,27 +79,56 @@ union ABC
         exit(0);
       }
     }
+    printf("current_index: %d\n", current_index);
     return current_index;
   }
 
+#if 0
+ static __inline__ void atomic_add(int i, atomic_t *v)
+ {
+__asm__ __volatile__(
+LOCK "addl %1,%0"
+:"=m" (v->counter)
+:"ir" (i), "m" (v->counter));
+ }
+#endif
   void pthread_exit(void *retval)
   {
     //while(1)
     {
-      //printf("thread exit: retval: %d\n", *((int*)retval));
-      printf("thread exit: %p, retval: %d\n", retval, *((int*)retval));
+#ifdef X86_32
+      asm volatile
+      (
+        "mov %%eax, %0"
+        : "=m" (retval)
+        :
+      );
+#endif
+
+
       thread_vec[current_index] = 0;
+      //printf("thread exit: retval: %d\n", *((int*)retval));
+      printf("thread exit: %p, retval: %d, current_index: %d\n", retval, *((int*)retval), current_index);
+      //pause();
+
+#if 1
+// 不使用這個方式是因為, DS::get_next_thread 在 signal handler 也會被呼叫, 會有 reentry function 的問題。但目前想不到別的方法。
+// 也許可以直接跳到一個 idle function
+      // select next thread to longjmp
       int next = DS::get_next_thread();
       my_longjmp(DS::thread_vec[next]->jmp_buf_, 1);
+#endif
     }
   }
 
   int pthread_attr_setstack(pthread_attr_t *attr, void *stackaddr, size_t stacksize)
   {
+    return 0;
   }
 
   int pthread_attr_getstack(const pthread_attr_t *attr, void **stackaddr, size_t *stacksize)
   {
+    return 0;
   }
 
   pthread_attr_t g_attr;
@@ -126,9 +149,9 @@ union ABC
 
     printf("xx sizeof(intptr_t): %u\n", sizeof(intptr_t));
 
-    thread->jmp_buf_[0].esp = (intptr_t)(stack_addr + BUF_SIZE - sizeof(intptr_t));
+    thread->jmp_buf_[0].esp = ((intptr_t)stack_addr + BUF_SIZE - sizeof(intptr_t));
 
-    printf("stack_addr + BUF_SIZE: %p\n", stack_addr+BUF_SIZE);
+    printf("stack_addr + BUF_SIZE: %p\n", (char *)stack_addr+BUF_SIZE);
     printf("thread->jmp_buf_[0].esp: %#x\n", thread->jmp_buf_[0].esp);
     printf("&pthread_exit_ret: %p\n", &pthread_exit_ret);
 
@@ -157,10 +180,11 @@ union ABC
 //Thread th1;
 
 
+int func1_ret = 11;
 
 void *func1(void *arg)
 {
-  while(1)
+  //while(1)
   {
     printf("1");
     printf("2");
@@ -180,12 +204,14 @@ void *func1(void *arg)
     printf("a");
     printf("\n");
   }
-  return (void*)1;
+  return &func1_ret;
 }
+
+int func2_ret = 22;
 
 void *func2(void *arg)
 {
-  while(1)
+  //while(1)
   {
     printf("21 ");
     printf("22 ");
@@ -194,7 +220,10 @@ void *func2(void *arg)
     printf("25 ");
     printf("\n");
   }
+  return &func2_ret;
 }
+
+int func3_ret = 33;
 
 void *func3(void *arg)
 {
@@ -206,6 +235,7 @@ void *func3(void *arg)
     printf("335 ");
     printf("\n");
   }
+  return &func3_ret;
 }
 
 void sigalrm_fn(int sig)
@@ -227,7 +257,15 @@ void sigalrm_fn(int sig)
   }
 
   int cur = DS::current_index;
+  #if 0
+  if (DS::thread_vec[cur] == 0) // DS::thread_vec[cur] is ended
+  {
+    cur = DS::get_next_thread();
+  }
+  #endif
   int next = DS::get_next_thread();
+
+  printf("cur: %d, next: %d\n", cur, next);
 
   //if (my_setjmp(*cur_th) == 0)
   //if (my_setjmp(th2) == 0)

@@ -92,11 +92,21 @@ LOCK "addl %1,%0"
 :"ir" (i), "m" (v->counter));
  }
 #endif
+  void push_ret_val()
+  {
+#ifdef X86_32
+      asm volatile
+      (
+        "mov %eax, 8(%esp)"
+      );
+#endif
+      //printf("xx\n"); // 假如有呼叫這行, 上面的組合語言要改成 "mov %eax, 12(%ebp)"
+  }
   void pthread_exit(void *retval)
   {
     //while(1)
     {
-#ifdef X86_32
+#if 0
       asm volatile
       (
         "mov %%eax, %0"
@@ -108,6 +118,7 @@ LOCK "addl %1,%0"
 
       thread_vec[current_index] = 0;
       //printf("thread exit: retval: %d\n", *((int*)retval));
+      //printf("thread exit: %p, current_index: %d\n", retval, current_index);
       printf("thread exit: %p, retval: %d, current_index: %d\n", retval, *((int*)retval), current_index);
       //pause();
 
@@ -155,10 +166,6 @@ LOCK "addl %1,%0"
     printf("thread->jmp_buf_[0].esp: %#x\n", thread->jmp_buf_[0].esp);
     printf("&pthread_exit_ret: %p\n", &pthread_exit_ret);
 
-#if 1
-    *(intptr_t*)thread->jmp_buf_[0].esp = (intptr_t)&pthread_exit_ret; // pthread_exit argument
-    thread->jmp_buf_[0].esp -= sizeof(intptr_t);
-#endif
 
 #if 1
     *(intptr_t*)thread->jmp_buf_[0].esp = 0; // push ebp
@@ -167,6 +174,12 @@ LOCK "addl %1,%0"
 
     *(intptr_t*)thread->jmp_buf_[0].esp = (intptr_t)pthread_exit;
     thread->jmp_buf_[0].esp -= sizeof(intptr_t);
+
+#if 1
+    *(intptr_t*)thread->jmp_buf_[0].esp = (intptr_t)&push_ret_val;
+    //*(intptr_t*)thread->jmp_buf_[0].esp = (intptr_t)&pthread_exit_ret; // pthread_exit argument
+    thread->jmp_buf_[0].esp -= sizeof(intptr_t);
+#endif
 
     thread_vec.push_back(thread);
     cur_thread = thread_vec.end() - 1;
@@ -181,6 +194,8 @@ LOCK "addl %1,%0"
 
 
 int func1_ret = 11;
+
+int test_ret=888;
 
 void *func1(void *arg)
 {
@@ -204,7 +219,9 @@ void *func1(void *arg)
     printf("a");
     printf("\n");
   }
-  return &func1_ret;
+  //return &func1_ret;
+  printf("  call DS::pthread_exit, test_ret: %d\n", test_ret);
+  DS::pthread_exit(&test_ret);
 }
 
 int func2_ret = 22;
@@ -220,6 +237,7 @@ void *func2(void *arg)
     printf("25 ");
     printf("\n");
   }
+  printf("  directly return func2_ret: %d\n", func2_ret);
   return &func2_ret;
 }
 
@@ -235,6 +253,7 @@ void *func3(void *arg)
     printf("335 ");
     printf("\n");
   }
+  printf("  directly return func3_ret: %d\n", func3_ret);
   return &func3_ret;
 }
 

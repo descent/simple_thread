@@ -76,7 +76,7 @@ union ABC
       if (cnt == thread_vec.size())
       {
         printf("all thread end\n");
-        exit(0);
+        pause();
       }
     }
     printf("current_index: %d\n", current_index);

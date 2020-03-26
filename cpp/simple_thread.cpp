@@ -89,7 +89,7 @@ union ABC
 
   pthread_t gen_tid()
   {
-    static pthread_t tid = 0;
+    static pthread_t tid = 1; // 1 for main thread
     return ++tid;
   }
 
@@ -191,6 +191,8 @@ LOCK "addl %1,%0"
 
   int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg)
   {
+    static int main_th_init = 0;
+
     ThreadPair thread_pair;
     *thread = gen_tid();
     thread_pair.first = *thread;
@@ -240,6 +242,8 @@ LOCK "addl %1,%0"
     thread_vec.push_back(thread_pair);
     cur_thread = thread_vec.end() - 1;
     current_index = thread_vec.size() - 1;
+
+
     return 0;
   }
 
@@ -332,7 +336,8 @@ void sigalrm_fn(int sig)
   if (once == 0)
   {
     once = 1;
-    my_longjmp(DS::thread_vec[DS::current_index].second.jmp_buf_, 1);
+    //printf("DS::current_index: %d\n", DS::current_index);
+    //my_longjmp(DS::thread_vec[DS::current_index].second.jmp_buf_, 1);
   }
 
   int cur = DS::current_index;
@@ -381,19 +386,36 @@ int main(int argc, char *argv[])
   int th1_arg = 111;
   printf("t1: %llu\n", t1);
   int ret = pthread_create(&t1, &th_attr1, func1, &th1_arg);
-  printf("xx t1: %llu\n", t1);
+  printf("after pthread_create t1: %llu\n", t1);
   printf("t2: %llu\n", t2);
   ret = pthread_create(&t2, &th_attr2, func2, 0);
-  printf("xx t2: %llu\n", t2);
+  printf("pthread_create t2: %llu\n", t2);
   printf("t3: %llu\n", t3);
   ret = pthread_create(&t3, &th_attr3, func3, 0);
-  printf("xx t3: %llu\n", t3);
+  printf("pthread_create t3: %llu\n", t3);
 
-  
-  for (int i=0 ; i < 10000 ; ++i)
-    for (int i=0 ; i < 10000 ; ++i)
+  DS::ThreadPair main_thread_pair;
+  main_thread_pair.first = 1; // fixed to 1
+
+  if (my_setjmp(main_thread_pair.second.jmp_buf_) == 0)
+  {
+    DS::thread_vec.push_back(main_thread_pair);
+    DS::current_index = DS::thread_vec.size() - 1;
+    printf("DS::current_index: %d, DS::thread_vec[DS::current_index].first: %llu\n", DS::current_index, DS::thread_vec[DS::current_index].first);
+    my_longjmp(DS::thread_vec[DS::current_index].second.jmp_buf_, 1);
+    //my_longjmp(main_thread_pair.second.jmp_buf_, 1);
+  }
+  else
+  {
+    printf("main thread\n");
+  }
+
+#if 1
+  for (int i=0 ; i < 1000 ; ++i)
+    for (int i=0 ; i < 1000 ; ++i)
       for (int i=0 ; i < 5000 ; ++i)
         ;
+#endif
   printf("main code\n");
 
   while (1) 

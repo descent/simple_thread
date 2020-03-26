@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <signal.h>
 #include <vector>
+#include <utility>
 #include "my_setjmp.h"
 
 using namespace std;
@@ -43,7 +44,9 @@ union ABC
     int i_;
   };
 
-  struct pthread_t
+  typedef unsigned long long pthread_t;
+
+  struct ThreadData
   {
     #ifdef X86_32
     my_x32_jmp_buf jmp_buf_;
@@ -52,16 +55,43 @@ union ABC
     my_x64_jmp_buf jmp_buf_;
     #endif
   };
+  typedef std::pair<pthread_t, ThreadData> ThreadPair;
 
-  pthread_t pthread_self(void)
-  {
-    //return (pthread_t)0;
-  }
 
-  vector<pthread_t*> thread_vec;
+  //vector<pthread_t*> thread_vec;
+  vector<std::pair<pthread_t, ThreadData> > thread_vec;
   auto cur_thread = thread_vec.begin();
   int current_index = 0;
   int pthread_exit_ret = 1;
+
+  pthread_t pthread_self(void)
+  {
+    return thread_vec[current_index].first;
+    //return (pthread_t)0;
+  }
+
+  int pthread_join(pthread_t thread, void **retval)
+  {
+    sigset_t sigs;
+    siginfo_t si;
+    int sig;
+
+    sigemptyset(&sigs);
+    sigaddset(&sigs, SIGRTMIN);
+
+    sigprocmask(SIG_SETMASK, &sigs, 0);
+
+    sig = sigwaitinfo(&sigs, &si);
+    if (sig == SIGRTMIN)
+    {
+    }
+  }
+
+  pthread_t gen_tid()
+  {
+    static pthread_t tid = 0;
+    return ++tid;
+  }
 
   auto get_next_thread()
   {
@@ -69,7 +99,7 @@ union ABC
     while(1)
     {
       current_index = (current_index + 1) % thread_vec.size();
-      if (thread_vec[current_index] !=0)
+      if (thread_vec[current_index].first != 0)
         break;
       else
         ++cnt;
@@ -116,7 +146,7 @@ LOCK "addl %1,%0"
 #endif
 
 
-      thread_vec[current_index] = 0;
+      thread_vec[current_index].first = 0;
       //printf("thread exit: retval: %d\n", *((int*)retval));
       //printf("thread exit: %p, current_index: %d\n", retval, current_index);
       printf("thread exit: %p, retval: %d, current_index: %d\n", retval, *((int*)retval), current_index);
@@ -127,7 +157,7 @@ LOCK "addl %1,%0"
 // 也許可以直接跳到一個 idle function
       // select next thread to longjmp
       int next = DS::get_next_thread();
-      my_longjmp(DS::thread_vec[next]->jmp_buf_, 1);
+      my_longjmp(DS::thread_vec[next].second.jmp_buf_, 1);
 #endif
     }
   }
@@ -148,10 +178,26 @@ LOCK "addl %1,%0"
     return malloc(size);
   }
 
+  void wrap_routine(void *(*start_routine) (void *), void *arg)
+  {
+    void *ptr;
+    if (start_routine)
+    {
+      printf("arg: %p\n", arg);
+      ptr = start_routine(arg);
+    }
+    pthread_exit(ptr);
+  }
 
   int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg)
   {
-    thread->jmp_buf_[0].eip = (intptr_t)start_routine;
+    ThreadPair thread_pair;
+    *thread = gen_tid();
+    thread_pair.first = *thread;
+
+    //thread->jmp_buf_[0].eip = (intptr_t)start_routine;
+    //thread->jmp_buf_[0].eip = (intptr_t)wrap_routine;
+    thread_pair.second.jmp_buf_[0].eip = (intptr_t)wrap_routine;
     //thread->jmp_buf_[0].esp = (unsigned long)(func1_stack + BUF_SIZE);
 
     auto stack_addr = thread_malloc_stack(BUF_SIZE);
@@ -160,13 +206,22 @@ LOCK "addl %1,%0"
 
     printf("xx sizeof(intptr_t): %u\n", sizeof(intptr_t));
 
-    thread->jmp_buf_[0].esp = ((intptr_t)stack_addr + BUF_SIZE - sizeof(intptr_t));
+    thread_pair.second.jmp_buf_[0].esp = ((intptr_t)stack_addr + BUF_SIZE - sizeof(intptr_t)); // current stack - 4 or 8
 
     printf("stack_addr + BUF_SIZE: %p\n", (char *)stack_addr+BUF_SIZE);
-    printf("thread->jmp_buf_[0].esp: %#x\n", thread->jmp_buf_[0].esp);
-    printf("&pthread_exit_ret: %p\n", &pthread_exit_ret);
+    //printf("thread->jmp_buf_[0].esp: %#x\n", thread->jmp_buf_[0].esp);
+    //printf("&pthread_exit_ret: %p\n", &pthread_exit_ret);
 
+    *(intptr_t*)thread_pair.second.jmp_buf_[0].esp = (intptr_t)arg;
+    thread_pair.second.jmp_buf_[0].esp -= sizeof(intptr_t);
 
+    *(intptr_t*)thread_pair.second.jmp_buf_[0].esp = (intptr_t)start_routine;
+    thread_pair.second.jmp_buf_[0].esp -= sizeof(intptr_t);
+
+    *(intptr_t*)thread_pair.second.jmp_buf_[0].esp = (intptr_t)0; // simulate push return address
+    thread_pair.second.jmp_buf_[0].esp -= sizeof(intptr_t);
+
+#if 0
 #if 1
     *(intptr_t*)thread->jmp_buf_[0].esp = 0; // push ebp
     thread->jmp_buf_[0].esp -= sizeof(intptr_t);
@@ -180,8 +235,9 @@ LOCK "addl %1,%0"
     //*(intptr_t*)thread->jmp_buf_[0].esp = (intptr_t)&pthread_exit_ret; // pthread_exit argument
     thread->jmp_buf_[0].esp -= sizeof(intptr_t);
 #endif
+#endif
 
-    thread_vec.push_back(thread);
+    thread_vec.push_back(thread_pair);
     cur_thread = thread_vec.end() - 1;
     current_index = thread_vec.size() - 1;
     return 0;
@@ -197,8 +253,11 @@ int func1_ret = 11;
 
 int test_ret=888;
 
+using DS::pthread_self;
+
 void *func1(void *arg)
 {
+  int val = *(int *)arg;
   //while(1)
   {
     printf("1");
@@ -218,9 +277,10 @@ void *func1(void *arg)
     printf("9");
     printf("a");
     printf("\n");
+    printf("arg: %d\n", val);
   }
   //return &func1_ret;
-  printf("  call DS::pthread_exit, test_ret: %d\n", test_ret);
+  printf("  call DS::pthread_exit, test_ret: %d, pthread_self(): %llu\n", test_ret, pthread_self() );
   DS::pthread_exit(&test_ret);
 }
 
@@ -237,7 +297,7 @@ void *func2(void *arg)
     printf("25 ");
     printf("\n");
   }
-  printf("  directly return func2_ret: %d\n", func2_ret);
+  printf("  directly return func2_ret: %d, pthread_self: %llu\n", func2_ret, pthread_self());
   return &func2_ret;
 }
 
@@ -253,7 +313,7 @@ void *func3(void *arg)
     printf("335 ");
     printf("\n");
   }
-  printf("  directly return func3_ret: %d\n", func3_ret);
+  printf("  directly return func3_ret: %d, pthread_self(): %llu\n", func3_ret, pthread_self());
   return &func3_ret;
 }
 
@@ -272,7 +332,7 @@ void sigalrm_fn(int sig)
   if (once == 0)
   {
     once = 1;
-    my_longjmp(DS::thread_vec[DS::current_index]->jmp_buf_, 1);
+    my_longjmp(DS::thread_vec[DS::current_index].second.jmp_buf_, 1);
   }
 
   int cur = DS::current_index;
@@ -288,19 +348,20 @@ void sigalrm_fn(int sig)
 
   //if (my_setjmp(*cur_th) == 0)
   //if (my_setjmp(th2) == 0)
-  if (my_setjmp(DS::thread_vec[cur]->jmp_buf_) == 0)
+  if (my_setjmp(DS::thread_vec[cur].second.jmp_buf_) == 0)
   {
-    my_longjmp(DS::thread_vec[next]->jmp_buf_, 1);
+    my_longjmp(DS::thread_vec[next].second.jmp_buf_, 1);
   }
   else
   {
     return;
   }
 
+  printf("signal handler end\n");
   return;
 }
 
-using DS::pthread_t;
+//using DS::pthread_t;
 //using DS::pthread_attr_t;
 DS::ABC abc;
 
@@ -317,9 +378,24 @@ int main(int argc, char *argv[])
 {
   setbuf(stdout, 0);
   signal(SIGUSR1, sigalrm_fn);
-  int ret = pthread_create(&t1, &th_attr1, func1, 0);
+  int th1_arg = 111;
+  printf("t1: %llu\n", t1);
+  int ret = pthread_create(&t1, &th_attr1, func1, &th1_arg);
+  printf("xx t1: %llu\n", t1);
+  printf("t2: %llu\n", t2);
   ret = pthread_create(&t2, &th_attr2, func2, 0);
+  printf("xx t2: %llu\n", t2);
+  printf("t3: %llu\n", t3);
   ret = pthread_create(&t3, &th_attr3, func3, 0);
+  printf("xx t3: %llu\n", t3);
+
+  
+  for (int i=0 ; i < 10000 ; ++i)
+    for (int i=0 ; i < 10000 ; ++i)
+      for (int i=0 ; i < 5000 ; ++i)
+        ;
+  printf("main code\n");
+
 
 
 #if 0

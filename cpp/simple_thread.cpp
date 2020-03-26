@@ -396,89 +396,8 @@ int main(int argc, char *argv[])
         ;
   printf("main code\n");
 
-
-
-#if 0
-  my_setjmp(th1);
-#ifdef X86_32
-  th1[0].eip = (unsigned long)func1;
-  th1[0].esp = (unsigned long)(func1_stack + BUF_SIZE);
-#endif
-#ifdef X86_64
-  th1[0].rip = (unsigned long)func1;
-  th1[0].rsp = (unsigned long)(func1_stack + BUF_SIZE);
-#endif
-
-  if (my_setjmp(th2) == 0)
-  {
-#ifdef X86_32
-    th2[0].eip = (unsigned long)func2;
-    th2[0].esp = (unsigned long)(func2_stack + BUF_SIZE);
-#endif
-#ifdef X86_64
-    th2[0].rip = (unsigned long)func2;
-    th2[0].rsp = (unsigned long)(func2_stack + BUF_SIZE);
-#endif
-    cur_th = &th2;
-    my_longjmp(th2, 1);
-  }
-#endif
-
-#if 0
-  my_setjmp(scheduler_state);
-  scheduler_state[0].eip = (unsigned long)scheduler;
-  scheduler_state[0].esp = (unsigned long)scheduler_stack;
-  func1();
-  //scheduler(0);
-#endif
-
-
   while (1) 
     pause();
 
-#if 0
-  struct sigaction sa;
-
-  sa.sa_handler = sigalrm_fn;
-  sigemptyset (&sa.sa_mask);
-  sa.sa_flags = SA_ONSTACK;
-  if (sigaction (SIGUSR1, &sa, NULL) != 0) 
-  {
-    perror ("sigaction");
-    abort();
-  }
-#endif
-#if 0
-  running_state = scheduler_state;
-
-  if (my_setjmp (running_state) == 0) 
-  {
-    kill (getpid(), SIGUSR1);
-    /* Wait for signal to arrive.  If you find yourself spinning
-     * here for any length of time, it's probably because SIGUSR1
-     * is still blocked from the last thread creation.
-     */
-    while (1) 
-      continue;
-   }
-#endif
-#if 0
-  //signal(SIGALRM, sigalrm_fn);
-  signal(SIGVTALRM, sigalrm_fn);
-
-  struct itimerval value, ovalue, value2;
-
-  value2.it_value.tv_sec = 0;
-  value2.it_value.tv_usec = 500000;
-  value2.it_interval.tv_sec = 0;
-  value2.it_interval.tv_usec = 500000;
-
-  setitimer(ITIMER_VIRTUAL, &value2, &ovalue);
-#endif
-  //func1();
-  //alarm(1);
-#if 0
-  my_longjmp(th1, 1);
-#endif
   return 0;
 }

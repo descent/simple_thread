@@ -57,6 +57,11 @@ union ABC
   };
   typedef std::pair<pthread_t, ThreadData> ThreadPair;
 
+  struct JoinData
+  {
+    pthread_t tid_;
+    void *ret_;
+  };
 
   //vector<pthread_t*> thread_vec;
   vector<std::pair<pthread_t, ThreadData> > thread_vec;
@@ -76,14 +81,32 @@ union ABC
     siginfo_t si;
     int sig;
 
-    sigemptyset(&sigs);
-    sigaddset(&sigs, SIGRTMIN);
-
-    sigprocmask(SIG_SETMASK, &sigs, 0);
-
-    sig = sigwaitinfo(&sigs, &si);
-    if (sig == SIGRTMIN)
+    while(1)
     {
+      sigemptyset(&sigs);
+      sigaddset(&sigs, SIGRTMIN);
+      sigprocmask(SIG_SETMASK, &sigs, 0);
+      sig = sigwaitinfo(&sigs, &si);
+      if (sig == -1)
+      {
+        perror("sigwaitinfo fail\n");
+        continue;
+      }
+      //printf("si.si_value.sival_int: %d, thread: %llu\n", si.si_value.sival_int, thread);
+      JoinData *jd = (JoinData*)si.si_ptr;
+      printf("jd->tid_: %llu, thread: %llu\n", jd->tid_, thread);
+      //if (sig == SIGRTMIN && si.si_value.sival_int == thread)
+      if (sig == SIGRTMIN && jd->tid_ == thread)
+      {
+        printf("xx break\n");
+        *retval = jd->ret_;
+        delete jd;
+        break;
+      }
+      else
+      {
+        printf("sig: %d\n", sig);
+      }
     }
   }
 
@@ -146,15 +169,26 @@ LOCK "addl %1,%0"
 #endif
 
 
-      thread_vec[current_index].first = 0;
       //printf("thread exit: retval: %d\n", *((int*)retval));
       //printf("thread exit: %p, current_index: %d\n", retval, current_index);
-      printf("thread exit: %p, retval: %d, current_index: %d\n", retval, *((int*)retval), current_index);
       //pause();
 
 #if 1
 // 不使用這個方式是因為, DS::get_next_thread 在 signal handler 也會被呼叫, 會有 reentry function 的問題。但目前想不到別的方法。
 // 也許可以直接跳到一個 idle function
+      //sigqueue(getpid(), SIGRTMIN, DS::thread_vec[current_index].first);
+      sigval value;
+      //value.sival_int = pthread_self();
+      JoinData *jdp = new JoinData{};
+      jdp->tid_ = pthread_self();
+      //join_data.tid_ = 2;
+      jdp->ret_ = retval;
+      value.sival_ptr = jdp;
+      //printf("in pthread_exit value.sival_int: %d\n", value.sival_int);
+      printf("in pthread_exit jdp->tid_: %llu\n", jdp->tid_);
+      thread_vec[current_index].first = 0;
+      printf("sigqueue, thread exit: %p, retval: %d, current_index: %d\n", retval, *((int*)retval), current_index);
+      sigqueue(getpid(), SIGRTMIN, value);
       // select next thread to longjmp
       int next = DS::get_next_thread();
       my_longjmp(DS::thread_vec[next].second.jmp_buf_, 1);
@@ -407,8 +441,18 @@ int main(int argc, char *argv[])
   }
   else
   {
-    printf("main thread\n");
   }
+
+  printf("main thread\n");
+#if 0
+  int *t1_ret;
+  DS::pthread_join(t1, (void**)&t1_ret);
+  printf("join t1 ret val: %d\n", *t1_ret);
+#endif
+
+  int *t2_ret;
+  DS::pthread_join(t2, (void**)&t2_ret);
+  printf("join t2 ret val: %d\n", *t2_ret);
 
 #if 1
   for (int i=0 ; i < 1000 ; ++i)

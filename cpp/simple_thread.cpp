@@ -225,7 +225,22 @@ LOCK "addl %1,%0"
 
   int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg)
   {
-    static int main_th_init = 0;
+    static int init_main_thread = 0;
+    static DS::ThreadPair main_thread_pair;
+
+#if 1
+    sigset_t sigs;
+    sigemptyset(&sigs);
+    sigaddset(&sigs, SIGRTMIN);
+    sigprocmask(SIG_SETMASK, &sigs, 0);
+#endif
+
+    if (0 == init_main_thread)
+    {
+      main_thread_pair.first = 1; // fixed to 1
+      thread_vec.push_back(main_thread_pair);
+      init_main_thread = 1;
+    }
 
     ThreadPair thread_pair;
     *thread = gen_tid();
@@ -277,15 +292,19 @@ LOCK "addl %1,%0"
     cur_thread = thread_vec.end() - 1;
     current_index = thread_vec.size() - 1;
 
-
+    auto &m_thread_pair = thread_vec[0];
+    if (my_setjmp(m_thread_pair.second.jmp_buf_) == 0)
+    {
+      my_longjmp(DS::thread_vec[DS::current_index].second.jmp_buf_, 1);
+    }
+    else
+    {
+      printf("m th\n");
+    }
     return 0;
   }
 
-
 }
-
-//Thread th1;
-
 
 int func1_ret = 11;
 
@@ -296,7 +315,7 @@ using DS::pthread_self;
 void *func1(void *arg)
 {
   int val = *(int *)arg;
-  //while(1)
+  while(1)
   {
     printf("1");
     printf("2");
@@ -326,7 +345,7 @@ int func2_ret = 22;
 
 void *func2(void *arg)
 {
-  //while(1)
+  while(1)
   {
     printf("21 ");
     printf("22 ");
@@ -343,6 +362,7 @@ int func3_ret = 33;
 
 void *func3(void *arg)
 {
+  while(1)
   {
     printf("331 ");
     printf("332 ");
@@ -428,31 +448,17 @@ int main(int argc, char *argv[])
   ret = pthread_create(&t3, &th_attr3, func3, 0);
   printf("pthread_create t3: %llu\n", t3);
 
-  DS::ThreadPair main_thread_pair;
-  main_thread_pair.first = 1; // fixed to 1
-
-  if (my_setjmp(main_thread_pair.second.jmp_buf_) == 0)
-  {
-    DS::thread_vec.push_back(main_thread_pair);
-    DS::current_index = DS::thread_vec.size() - 1;
-    printf("DS::current_index: %d, DS::thread_vec[DS::current_index].first: %llu\n", DS::current_index, DS::thread_vec[DS::current_index].first);
-    my_longjmp(DS::thread_vec[DS::current_index].second.jmp_buf_, 1);
-    //my_longjmp(main_thread_pair.second.jmp_buf_, 1);
-  }
-  else
-  {
-  }
 
   printf("main thread\n");
 #if 0
   int *t1_ret;
   DS::pthread_join(t1, (void**)&t1_ret);
   printf("join t1 ret val: %d\n", *t1_ret);
-#endif
 
   int *t2_ret;
   DS::pthread_join(t2, (void**)&t2_ret);
   printf("join t2 ret val: %d\n", *t2_ret);
+#endif
 
 #if 1
   for (int i=0 ; i < 1000 ; ++i)
@@ -462,8 +468,10 @@ int main(int argc, char *argv[])
 #endif
   printf("main code\n");
 
+#if 0
   while (1) 
     pause();
+#endif
 
   return 0;
 }

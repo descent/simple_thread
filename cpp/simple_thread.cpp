@@ -7,6 +7,15 @@
 #include <utility>
 #include "my_setjmp.h"
 
+//#define USE_PTHREAD
+
+#ifdef USE_PTHREAD
+#include <pthread.h>
+#define DS 
+#else
+#endif
+
+
 using namespace std;
 
 #define BUF_SIZE 32768
@@ -310,7 +319,6 @@ int func1_ret = 11;
 
 int test_ret=888;
 
-using DS::pthread_self;
 
 void *func1(void *arg)
 {
@@ -337,7 +345,7 @@ void *func1(void *arg)
     printf("arg: %d\n", val);
   }
   //return &func1_ret;
-  printf("  call DS::pthread_exit, test_ret: %d, pthread_self(): %llu\n", test_ret, pthread_self() );
+  printf("  call DS::pthread_exit, test_ret: %d, pthread_self(): %llu\n", test_ret, DS::pthread_self() );
   DS::pthread_exit(&test_ret);
 }
 
@@ -354,7 +362,7 @@ void *func2(void *arg)
     printf("25 ");
     printf("\n");
   }
-  printf("  directly return func2_ret: %d, pthread_self: %llu\n", func2_ret, pthread_self());
+  printf("  directly return func2_ret: %d, pthread_self: %llu\n", func2_ret, DS::pthread_self());
   return &func2_ret;
 }
 
@@ -371,7 +379,7 @@ void *func3(void *arg)
     printf("335 ");
     printf("\n");
   }
-  printf("  directly return func3_ret: %d, pthread_self(): %llu\n", func3_ret, pthread_self());
+  printf("  directly return func3_ret: %d, pthread_self(): %llu\n", func3_ret, DS::pthread_self());
   return &func3_ret;
 }
 
@@ -423,6 +431,7 @@ void sigalrm_fn(int sig)
 //using DS::pthread_t;
 //using DS::pthread_attr_t;
 DS::ABC abc;
+
 
 DS::pthread_t t1;
 DS::pthread_attr_t th_attr1;

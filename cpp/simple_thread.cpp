@@ -34,20 +34,8 @@ char scheduler_stack[BUF_SIZE];
 #define my_longjmp my_x64_longjmp
 #endif
 
-
-
-union ABC
-{
-  int i_;
-};
-
 namespace DS
 {
-union ABC
-{
-  int i_;
-};
-
   union pthread_attr_t
   {
     int i_;
